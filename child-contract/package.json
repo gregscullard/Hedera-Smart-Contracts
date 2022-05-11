@@ -1,0 +1,22 @@
+{
+  "name": "child-contract",
+  "version": "1.0.0",
+  "description": "",
+  "main": "./src/index.js",
+  "scripts": {
+    "build": "waffle"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@hashgraph/sdk": "^2.13.1",
+    "dotenv": "^16.0.0",
+    "web3": "^1.7.0"
+  },
+  "devDependencies": {
+    "chai": "^4.3.6",
+    "ethereum-waffle": "^3.4.4",
+    "ethers": "^5.6.5"
+  }
+}
