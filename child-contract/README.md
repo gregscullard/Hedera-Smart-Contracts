@@ -4,13 +4,15 @@ Shows a contract `MomContract` creating another contract `DaughterContract` when
 
 The example also queries `MomContract` and `DaughterContract` to show the construction was successful
 
+## Setup environment
+
+Please refer to the main [readme](../README.md)
+
 ## Installation
 
 ```shell
 npm install
 npm run build # to recompile the contracts
-cp .env.sample .env
-nano .env # edit the OPERATOR_ID and OPERATOR_KEY to match your Hedera Account and Private Key
 ```
 
 ## Run

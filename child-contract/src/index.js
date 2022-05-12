@@ -8,7 +8,7 @@ const {
     AccountId, ContractId,
 } = require("@hashgraph/sdk");
 
-require('dotenv').config({ path: '../.env' });
+require('dotenv').config({ path: '../../.env' });
 const momContract = require("../build/MomContract.json");
 const Web3 = require("web3");
 const web3 = new Web3;
