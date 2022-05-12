@@ -1,4 +1,3 @@
-const fs = require("fs");
 const {TokenCreateTransaction, FileCreateTransaction, FileAppendTransaction, AccountId, PrivateKey,
     ContractCreateTransaction, TokenType, TokenSupplyType, Hbar, Client, ContractId, AccountCreateTransaction, KeyList,
     ContractUpdateTransaction, ContractInfoQuery, ContractExecuteTransaction,
