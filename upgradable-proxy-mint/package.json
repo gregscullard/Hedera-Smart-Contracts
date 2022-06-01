@@ -1,0 +1,25 @@
+{
+  "name": "upgradable-proxy-mint",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "./node_modules/.bin/mocha --reporter spec"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@hashgraph/hethers": "^1.0.3",
+    "@hashgraph/sdk": "2.14.2",
+    "@openzeppelin/contracts": "^4.5.0",
+    "@openzeppelin/contracts-upgradeable": "^4.5.2",
+    "chai": "^4.3.6",
+    "dotenv": "^16.0.1",
+    "mocha": "^9.2.2",
+    "web3": "^1.7.0",
+    "bignumber.js": "^9.0.2"
+  },
+  "devDependencies": {
+    "ethereum-waffle": "^3.4.4"
+  }
+}
