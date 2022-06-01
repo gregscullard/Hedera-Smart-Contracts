@@ -342,4 +342,3 @@ function decodeFunctionResult(abi, functionName, resultAsBytes) {
 }
 
 main();
-
