@@ -48,10 +48,9 @@ contract HederaERC20 is IERC20, HederaTokenService {
 
         (bool success, bytes memory _returndata) = tokenAddress.delegatecall(
             abi.encodeWithSelector(IHederaTokenService.mintToken.selector, tokenAddress, uint64(amount), new bytes[](0)));
-//        require(success, "Minting error");
-//        _transfer(address(this), account, amount);
-//        return true;
-        return success;
+        require(success, "Minting error");
+        _transfer(address(this), account, amount);
+        return true;
     }
 
     function mint2(address account, uint256 amount) external returns (bool, bytes memory) {
@@ -61,9 +60,6 @@ contract HederaERC20 is IERC20, HederaTokenService {
 
         (bool success, bytes memory _returndata) = tokenAddress.delegatecall(
             abi.encodeWithSelector(IHederaTokenService.mintToken.selector, tokenAddress, uint64(amount), new bytes[](0)));
-//                require(success, "Minting error");
-//                _transfer(address(this), account, amount);
-//                return true;
         return (success, _returndata);
     }
 
