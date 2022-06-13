@@ -2,52 +2,28 @@ const {TokenCreateTransaction, FileCreateTransaction, FileAppendTransaction, Acc
     ContractCreateTransaction, TokenType, TokenSupplyType, Hbar, Client, ContractId, AccountCreateTransaction, KeyList,
     ContractUpdateTransaction, ContractInfoQuery, ContractExecuteTransaction,
     ContractFunctionParameters, TokenUpdateTransaction, TokenInfoQuery, TokenAssociateTransaction, ContractCallQuery,
-    AccountBalanceQuery
+    AccountBalanceQuery, TransferTransaction, HbarUnit
 } = require("@hashgraph/sdk");
 const Web3 = require ("web3");
 const dotenv = require("dotenv");
 const web3 = new Web3('http://localhost:8545');
+const abiDecoder = require("abi-decoder");
 
 dotenv.config({ path: '../.env' });
 
 const erc20ContractJson = require("./build/contracts/HederaERC20.json");
-const proxyContractJson = require("./build/contracts/HederaERC1967Proxy.json");
+const proxyContractJson = require("./build/contracts/ERC1967Proxy.json");
 const tokenManagementContractJson = require("./build/contracts/HTSTokenManagement.json");
 
-async function deployContract(client, bytecode, fileAdminKey, constructorParameters, contractAdminKey) {
-    //Create a file on Hedera and store the hex-encoded bytecode
-    const fileCreateTx = await new FileCreateTransaction().setKeys([fileAdminKey]).execute(client);
-    const fileCreateRx = await fileCreateTx.getReceipt(client);
-    const bytecodeFileId = fileCreateRx.fileId;
-
-    // Append contents to the file
-    const fileAppendTx = await new FileAppendTransaction()
-        .setFileId(bytecodeFileId)
-        .setContents(bytecode)
-        .setMaxChunks(10)
-        .execute(client);
-    await fileAppendTx.getReceipt(client);
-
-    const contractCreateTx = new ContractCreateTransaction()
-        .setBytecodeFileId(bytecodeFileId)
-        .setGas(100000);
-
-    if (contractAdminKey) {
-        contractCreateTx.setAdminKey(contractAdminKey);
-    }
-    if (constructorParameters) {
-        contractCreateTx.setConstructorParameters(constructorParameters);
-    }
-
-    const txResult = await contractCreateTx.execute(client);
-
-    let contractCreateRx = await txResult.getReceipt(client);
-    return contractCreateRx.contractId.toString();
-}
+let client;
 
 async function main() {
 
-    let client = Client.forNetwork(process.env.HEDERA_NETWORK);
+    if (process.env.HEDERA_NETWORK === 'local') {
+        client = Client.forNetwork({'127.0.0.1:50211': AccountId.fromString('0.0.3')});
+    } else {
+        client = Client.forNetwork(process.env.HEDERA_NETWORK);
+    }
 
     const operatorKey = PrivateKey.fromString(process.env.OPERATOR_KEY);
 
@@ -56,28 +32,54 @@ async function main() {
         operatorKey
     );
 
-    console.log(`\nCreate accounts`);
-    const adminKey = PrivateKey.generateED25519();
-    const aliceKey = PrivateKey.generateED25519();
+    // reuse accounts if they exist in .env
+    const adminAccountEnv = process.env.ADMIN_ACCOUNT;
+    const adminKeyEnv = process.env.ADMIN_KEY;
+    const aliceAccountEnv = process.env.ALICE_ACCOUNT;
+    const aliceKeyEnv = process.env.ALICE_KEY;
 
-    let createAccountTx = await new AccountCreateTransaction()
-        .setKey(adminKey.publicKey)
-        .setInitialBalance(100)
-        .execute(client);
+    let adminKey;
+    let aliceKey;
+    let adminAccount;
+    let aliceAccount;
+    if (adminAccountEnv) {
+        console.log(`\nRe-using accounts`);
+        adminKey = PrivateKey.fromStringED25519(adminKeyEnv);
+        adminAccount = AccountId.fromString(adminAccountEnv);
+        aliceKey = PrivateKey.fromStringED25519(aliceKeyEnv);
+        aliceAccount = AccountId.fromString(aliceAccountEnv);
 
-    let createAccountRx = await createAccountTx.getReceipt(client);
-    const adminAccount = createAccountRx.accountId;
+        // top up existing accounts
+        await topUp(adminAccount);
+        await topUp(aliceAccount);
+    } else {
+        console.log(`\nCreating new accounts`);
+        adminKey = PrivateKey.generateED25519();
+        aliceKey = PrivateKey.generateED25519();
+
+        let createAccountTx = await new AccountCreateTransaction()
+            .setKey(adminKey.publicKey)
+            .setInitialBalance(100)
+            .execute(client);
+
+        let createAccountRx = await createAccountTx.getReceipt(client);
+        adminAccount = createAccountRx.accountId;
+
+        createAccountTx = await new AccountCreateTransaction()
+            .setKey(aliceKey.publicKey)
+            .setInitialBalance(100)
+            .execute(client);
+
+        createAccountRx = await createAccountTx.getReceipt(client);
+        aliceAccount = createAccountRx.accountId;
+    }
+
     console.log(`- Admin account is ${adminAccount.toString()} (${adminAccount.toSolidityAddress()})`);
-
-    createAccountTx = await new AccountCreateTransaction()
-        .setKey(aliceKey.publicKey)
-        .setMaxAutomaticTokenAssociations(1)
-        .setInitialBalance(100)
-        .execute(client);
-
-    createAccountRx = await createAccountTx.getReceipt(client);
-    const aliceAccount = createAccountRx.accountId;
+    console.log(`- Admin priv key ${adminKey.toStringRaw()}`);
+    console.log(`- Admin pub key ${adminKey.publicKey.toStringRaw()}`);
     console.log(`- Alice account is ${aliceAccount.toString()} (${aliceAccount.toSolidityAddress()})`);
+    console.log(`- Alice priv key ${aliceKey.toStringRaw()}`);
+    console.log(`- Alice pub key ${aliceKey.publicKey.toStringRaw()}`);
 
     // switch client to admin
     console.log(`\nSwitching operator to Admin`);
@@ -85,23 +87,64 @@ async function main() {
 
     client.setDefaultMaxTransactionFee(new Hbar(50));
 
+    let erc20ContractAdminKey = null;
+    let proxyContractAdminKey = null;
+    let tokenManagementAdminKey = null;
+
+    // specify which contract should "own" the token
+    // const contractOwningToken = "ERC20";
+    // const contractOwningToken = "Proxy";
+    const contractOwningToken = "Management";
+
+    switch (contractOwningToken) {
+        case 'ERC20':
+            erc20ContractAdminKey = adminKey;
+            break;
+        case 'Proxy':
+            proxyContractAdminKey = adminKey;
+            break;
+        case 'Management':
+            tokenManagementAdminKey = adminKey;
+            break;
+        default:
+            console.log(`Invalid contractOwningToken ${contractOwningToken}`);
+            return;
+    }
+
     console.log(`\nDeploying ERC20 contract`);
-    const erc20ContractId = await deployContract(client, erc20ContractJson.bytecode, adminKey, null, adminKey);
+    const erc20ContractId = await deployContract(erc20ContractJson.bytecode, adminKey, null, erc20ContractAdminKey);
     console.log(`- ERC20 Contract created ${erc20ContractId} (${ContractId.fromString(erc20ContractId).toSolidityAddress()})`);
 
     console.log(`\nDeploying Proxy contract`);
     const constructorParameters = new ContractFunctionParameters()
         .addAddress(ContractId.fromString(erc20ContractId).toSolidityAddress())
         .addBytes(new Uint8Array([]));
-    const proxyContractId = await deployContract(client, proxyContractJson.bytecode, adminKey, constructorParameters, adminKey);
+    const proxyContractId = await deployContract(proxyContractJson.bytecode, adminKey, constructorParameters, proxyContractAdminKey);
     console.log(`- Proxy Contract created ${proxyContractId} (${ContractId.fromString(proxyContractId).toSolidityAddress()})`);
 
     console.log(`\nDeploying Token Management contract`);
-    const tokenManagementContractId = await deployContract(client, tokenManagementContractJson.bytecode, adminKey, null, adminKey);
+    const tokenManagementContractId = await deployContract(tokenManagementContractJson.bytecode, adminKey, null, tokenManagementAdminKey);
     console.log(`- Token Management Contract created ${tokenManagementContractId} (${ContractId.fromString(tokenManagementContractId).toSolidityAddress()})`);
 
     // set the id of the contract that will own the token (Treasury + supplyKey)
-    const tokenOwnerContractId = tokenManagementContractId;
+    let tokenOwnerContractId = null;
+    switch (contractOwningToken) {
+        case 'ERC20':
+            tokenOwnerContractId = erc20ContractId;
+            break;
+        case 'Proxy':
+            tokenOwnerContractId = proxyContractId;
+            break;
+        case 'Management':
+            tokenOwnerContractId = tokenManagementContractId;
+            break;
+        default:
+            console.log(`Invalid contractOwningToken ${contractOwningToken}`);
+            return;
+    }
+
+    const contractToInvoke = proxyContractId;
+    // const contractToInvoke = erc20ContractId;
 
     console.log(`\nCreate token`);
     const tokenCreateTx = await new TokenCreateTransaction()
@@ -156,7 +199,7 @@ async function main() {
         .setTokenId(tokenId)
         .execute(client);
 
-    console.log(`admin key: ${tokenInfo.adminKey}`);
+    console.log(`supply key: ${tokenInfo.supplyKey}`);
     console.log(`treasury account id: ${tokenInfo.treasuryAccountId}`);
     console.log(`total supply: ${tokenInfo.totalSupply}`);
 
@@ -179,8 +222,8 @@ async function main() {
         .addAddress(tokenId.toSolidityAddress());
 
     let contractTx = await new ContractExecuteTransaction()
-        .setContractId(proxyContractId)
-        .setFunction("setTokenManagementAddress", contractFunctionParameters)
+        .setContractId(contractToInvoke)
+        .setFunction("setTokenAddress", contractFunctionParameters)
         .setGas(500000)
         .execute(client);
     await contractTx.getReceipt(client);
@@ -196,25 +239,6 @@ async function main() {
         .execute(client);
     await contractTx.getReceipt(client);
 
-    console.log(`\nQuery token name`);
-    let txResult = await new ContractExecuteTransaction()
-        .setContractId(proxyContractId)
-        .setFunction("name")
-        .setGas(100000)
-        .execute(client);
-    let txRecord = await txResult.getRecord(client);
-    console.log(`- token name is ${txRecord.contractFunctionResult.getString(0)}`);
-
-    console.log('\nQuery management contract for ERC20 address');
-    txResult = await new ContractExecuteTransaction()
-        .setContractId(tokenManagementContractId)
-        .setFunction("erc20address")
-        .setGas(50000)
-        .execute(client);
-    txRecord = await txResult.getRecord(client);
-    console.log(`- erc20 address is ${txRecord.contractFunctionResult.getAddress(0)}`);
-    console.log(`- actual erc20 address is ${ContractId.fromString(erc20ContractId).toSolidityAddress()}`);
-
     console.log(`\nMinting 1 (100) to Alice`);
 
     contractFunctionParameters = new ContractFunctionParameters()
@@ -226,7 +250,7 @@ async function main() {
     client.setOperator(adminAccount, adminKey);
 
     let contractMintTx = await new ContractExecuteTransaction()
-        .setContractId(proxyContractId)
+        .setContractId(contractToInvoke)
         .setFunction("mint", contractFunctionParameters)
         .setGas(1000000)
         .execute(client);
@@ -237,6 +261,10 @@ async function main() {
 
     console.log(`result should be true`);
     decodeFunctionResult(erc20ContractJson.abi, "mint", record.contractFunctionResult.asBytes());
+
+    // show logs
+    await showLogs(tokenManagementContractJson, record);
+    await showLogs(erc20ContractJson, record);
 
     console.log(`\nToken Query to check token supply`);
     tokenInfo = await new TokenInfoQuery()
@@ -251,7 +279,7 @@ async function main() {
     client.setOperator(aliceAccount, aliceKey);
 
     contractMintTx = await new ContractExecuteTransaction()
-        .setContractId(proxyContractId)
+        .setContractId(contractToInvoke)
         .setFunction("mint", contractFunctionParameters)
         .setGas(1000000)
         .execute(client);
@@ -270,6 +298,10 @@ async function main() {
 
     console.log(`token supply should be 200, it is: ${tokenInfo.totalSupply}`);
 
+    // show logs
+    await showLogs(tokenManagementContractJson, record);
+    await showLogs(erc20ContractJson, record);
+
     console.log(`\nChecking Alice Balance`);
 
     const aliceBalance = await new AccountBalanceQuery()
@@ -279,6 +311,96 @@ async function main() {
     console.log(aliceBalance.tokens.get(tokenId.toString()));
 
     client.close();
+}
+
+async function deployContract(bytecode, fileAdminKey, constructorParameters, contractAdminKey) {
+    //Create a file on Hedera and store the hex-encoded bytecode
+    const fileCreateTx = await new FileCreateTransaction().setKeys([fileAdminKey]).execute(client);
+    const fileCreateRx = await fileCreateTx.getReceipt(client);
+    const bytecodeFileId = fileCreateRx.fileId;
+
+    // Append contents to the file
+    const fileAppendTx = await new FileAppendTransaction()
+        .setFileId(bytecodeFileId)
+        .setContents(bytecode)
+        .setMaxChunks(10)
+        .execute(client);
+    await fileAppendTx.getReceipt(client);
+
+    const contractCreateTx = new ContractCreateTransaction()
+        .setBytecodeFileId(bytecodeFileId)
+        .setGas(100000);
+
+    if (contractAdminKey) {
+        contractCreateTx.setAdminKey(contractAdminKey);
+    }
+    if (constructorParameters) {
+        contractCreateTx.setConstructorParameters(constructorParameters);
+    }
+
+    const txResult = await contractCreateTx.execute(client);
+
+    let contractCreateRx = await txResult.getReceipt(client);
+    return contractCreateRx.contractId.toString();
+}
+
+async function topUp(targetAccount) {
+    const targetBalance = 100;
+
+    const balance = await new AccountBalanceQuery()
+        .setAccountId(targetAccount)
+        .execute(client);
+
+
+    if (balance.hbars.toBigNumber().isLessThan(targetBalance)) {
+        const topUp = Hbar.fromTinybars(Hbar.from(targetBalance, HbarUnit.Hbar).toTinybars() - balance.hbars.toTinybars());
+        console.log(`topping up account ${targetAccount} with ${topUp.toString(HbarUnit.Hbar)}`);
+        await new TransferTransaction()
+            .addHbarTransfer(AccountId.fromString(process.env.OPERATOR_ID), topUp.negated())
+            .addHbarTransfer(targetAccount, topUp)
+            .execute(client);
+    }
+}
+
+async function showLogs(tokenManagementContractJson, record) {
+    abiDecoder.addABI(tokenManagementContractJson.abi);
+
+    console.log(`\nGetting event(s) from record`);
+
+    // the events from the function call are in record.contractFunctionResult.logs.data
+    // let's parse the logs using abi-decoder
+    // there may be several log entries
+
+    const logs = []
+
+    record.contractFunctionResult.logs.forEach(log => {
+        const logJson = {
+            data: "",
+            topics: []
+        }
+
+        // convert the log.data (uint8Array) to a string
+        logJson.data = '0x'.concat(Buffer.from(log.data).toString('hex'));
+
+        // get topics from log
+        log.topics.forEach(topic => {
+            logJson.topics.push('0x'.concat(Buffer.from(topic).toString('hex')));
+        });
+
+        logs.push(logJson);
+    });
+
+    const events = abiDecoder.decodeLogs(logs);
+
+    console.log(`\nRecord events`);
+    for (let eventIndex=0; eventIndex < events.length; eventIndex++) {
+        const event = events[eventIndex];
+        console.log(`event ${event.name}`);
+        for (let eventDataIndex=0; eventDataIndex < event.events.length; eventDataIndex++) {
+            const eventData = event.events[eventDataIndex];
+            console.log(`  ${eventData.name} : ${eventData.value}`);
+        }
+    };
 }
 
 function decodeFunctionResult(abi, functionName, resultAsBytes) {

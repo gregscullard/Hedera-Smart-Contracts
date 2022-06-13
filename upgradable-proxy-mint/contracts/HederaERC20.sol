@@ -13,13 +13,14 @@ contract HederaERC20 is IERC20, HederaTokenService {
 
     HTSTokenManagement tokenManagementAddress;
     address tokenAddress;
+    event LogMsgSenderERC(address who);
 
     uint64 constant MAX_INT = 2**64 - 1;
 
     constructor() {
     }
 
-    function setTokenManagementAddress(HTSTokenManagement _tokenManagementAddress, address _tokenAddress) external {
+    function setTokenAddress(HTSTokenManagement _tokenManagementAddress, address _tokenAddress) external {
         //TODO: Check contract address has not yet been set - this errors at the moment
         //require(tokenManagementAddress == address(0), "Token address management already defined");
         require(tokenAddress == address(0), "Token address already defined");
@@ -49,14 +50,16 @@ contract HederaERC20 is IERC20, HederaTokenService {
 
     function mint(address account, uint256 amount) external returns (bool) {
 
-//        (bool success, bytes memory result) = precompileAddress.delegatecall(
-//            abi.encodeWithSelector(IHederaTokenService.mintToken.selector, tokenAddress, uint64(amount), new bytes[](0)));
+//        (bool success, bytes memory result) = address(tokenManagementAddress).delegatecall(
+//            abi.encodeWithSelector(HTSTokenManagement.mintToken.selector, tokenAddress, uint256(amount)));
+
+//        emit LogMsgSenderERC(msg.sender);
 
         (bool success) = tokenManagementAddress.mintToken(tokenAddress, amount);
-        require(success, "Minting error");
 
-//        _transfer(address(this), account, amount);
+        //        require(success, "Minting error");
         return success;
+        //        _transfer(address(this), account, amount);
     }
 
     function transfer(address to, uint256 amount) external returns (bool) {
