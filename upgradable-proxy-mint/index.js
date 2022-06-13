@@ -16,6 +16,7 @@ const proxyContractJson = require("./build/contracts/ERC1967Proxy.json");
 const tokenManagementContractJson = require("./build/contracts/HTSTokenManagement.json");
 
 let client;
+let tokenId;
 
 async function main() {
 
@@ -144,7 +145,6 @@ async function main() {
     }
 
     const contractToInvoke = proxyContractId;
-    // const contractToInvoke = erc20ContractId;
 
     console.log(`\nCreate token`);
     const tokenCreateTx = await new TokenCreateTransaction()
@@ -160,7 +160,7 @@ async function main() {
         .execute(client);
 
     const tokenCreateRx = await tokenCreateTx.getReceipt(client);
-    const tokenId = tokenCreateRx.tokenId;
+    tokenId = tokenCreateRx.tokenId;
     console.log(`- Token created ${tokenId}`);
 
     console.log(`\nAssociate token owner contract to token`);
@@ -249,68 +249,68 @@ async function main() {
     console.log(`\nSwitching operator to admin`);
     client.setOperator(adminAccount, adminKey);
 
-    let contractMintTx = await new ContractExecuteTransaction()
-        .setContractId(contractToInvoke)
-        .setFunction("mint", contractFunctionParameters)
-        .setGas(1000000)
-        .execute(client);
-
-    console.log(`TransactionId is : ${contractMintTx.transactionId.toString()}`);
-
-    let record = await contractMintTx.getRecord(client);
-
-    console.log(`result should be true`);
-    decodeFunctionResult(erc20ContractJson.abi, "mint", record.contractFunctionResult.asBytes());
-
-    // show logs
-    await showLogs(tokenManagementContractJson, record);
-    await showLogs(erc20ContractJson, record);
-
-    console.log(`\nToken Query to check token supply`);
-    tokenInfo = await new TokenInfoQuery()
-        .setTokenId(tokenId)
-        .execute(client);
-
-    console.log(`token supply should be 100, it is: ${tokenInfo.totalSupply}`);
+    console.log("\nCalling mint - ERC20 calls management / management calls precompile");
+    await callMintContract("mintCallCall", contractToInvoke, contractFunctionParameters);
+    console.log("\nCalling mint - ERC20 calls management / management delegate calls precompile");
+    await callMintContract("mintCallDelegate", contractToInvoke, contractFunctionParameters);
+    console.log("\nCalling mint - ERC20 delegate calls management / management calls precompile");
+    await callMintContract("mintDelegateCall", contractToInvoke, contractFunctionParameters);
+    console.log("\nCalling mint - ERC20 delegate calls management / management delegate calls precompile");
+    await callMintContract("mintDelegateDelegate", contractToInvoke, contractFunctionParameters);
 
     // switch client to alice
     // note Alice should have no "authority" on the token, but the contract has
-    console.log(`\nSwitching operator to Alice`);
-    client.setOperator(aliceAccount, aliceKey);
-
-    contractMintTx = await new ContractExecuteTransaction()
-        .setContractId(contractToInvoke)
-        .setFunction("mint", contractFunctionParameters)
-        .setGas(1000000)
-        .execute(client);
-
-    console.log(`TransactionId is : ${contractMintTx.transactionId.toString()}`);
-
-    record = await contractMintTx.getRecord(client);
-
-    console.log(`result should be true`);
-    decodeFunctionResult(erc20ContractJson.abi, "mint", record.contractFunctionResult.asBytes());
-
-    console.log(`\nToken Query to check token supply`);
-    tokenInfo = await new TokenInfoQuery()
-        .setTokenId(tokenId)
-        .execute(client);
-
-    console.log(`token supply should be 200, it is: ${tokenInfo.totalSupply}`);
-
-    // show logs
-    await showLogs(tokenManagementContractJson, record);
-    await showLogs(erc20ContractJson, record);
-
-    console.log(`\nChecking Alice Balance`);
-
-    const aliceBalance = await new AccountBalanceQuery()
-        .setAccountId(aliceAccount)
-        .execute(client);
-
-    console.log(aliceBalance.tokens.get(tokenId.toString()));
+    // console.log(`\nSwitching operator to Alice`);
+    // client.setOperator(aliceAccount, aliceKey);
+    //
+    // console.log("Calling mint call call");
+    // await callMintContract("mintCallCall", contractToInvoke, contractFunctionParameters);
+    // console.log("Calling mint call delegate");
+    // await callMintContract("mintCallDelegate", contractToInvoke, contractFunctionParameters);
+    // console.log("Calling mint delegate call");
+    // await callMintContract("mintDelegateCall", contractToInvoke, contractFunctionParameters);
+    // console.log("Calling mint delegate delegate");
+    // await callMintContract("mintDelegateDelegate", contractToInvoke, contractFunctionParameters);
+    //
+    // console.log(`\nChecking Alice Balance`);
+    //
+    // const aliceBalance = await new AccountBalanceQuery()
+    //     .setAccountId(aliceAccount)
+    //     .execute(client);
+    //
+    // console.log(aliceBalance.tokens.get(tokenId.toString()));
 
     client.close();
+}
+
+async function callMintContract(functionName, contractToInvoke, contractFunctionParameters) {
+    try {
+        let contractMintTx = await new ContractExecuteTransaction()
+            .setContractId(contractToInvoke)
+            .setFunction(functionName, contractFunctionParameters)
+            .setGas(1000000)
+            .execute(client);
+
+        console.log(`TransactionId is : ${contractMintTx.transactionId.toString()}`);
+
+        let record = await contractMintTx.getRecord(client);
+
+        console.log(`result should be true`);
+        decodeFunctionResult(erc20ContractJson.abi, functionName, record.contractFunctionResult.asBytes());
+
+        // show logs
+        await showLogs(tokenManagementContractJson, record);
+        await showLogs(erc20ContractJson, record);
+
+        console.log(`\nToken Query to check token supply`);
+        const tokenInfo = await new TokenInfoQuery()
+            .setTokenId(tokenId)
+            .execute(client);
+
+        console.log(`token supply is: ${tokenInfo.totalSupply}`);
+    } catch (e) {
+        console.error(e.message);
+    }
 }
 
 async function deployContract(bytecode, fileAdminKey, constructorParameters, contractAdminKey) {
@@ -365,8 +365,6 @@ async function topUp(targetAccount) {
 async function showLogs(tokenManagementContractJson, record) {
     abiDecoder.addABI(tokenManagementContractJson.abi);
 
-    console.log(`\nGetting event(s) from record`);
-
     // the events from the function call are in record.contractFunctionResult.logs.data
     // let's parse the logs using abi-decoder
     // there may be several log entries
@@ -392,15 +390,17 @@ async function showLogs(tokenManagementContractJson, record) {
 
     const events = abiDecoder.decodeLogs(logs);
 
-    console.log(`\nRecord events`);
-    for (let eventIndex=0; eventIndex < events.length; eventIndex++) {
-        const event = events[eventIndex];
-        console.log(`event ${event.name}`);
-        for (let eventDataIndex=0; eventDataIndex < event.events.length; eventDataIndex++) {
-            const eventData = event.events[eventDataIndex];
-            console.log(`  ${eventData.name} : ${eventData.value}`);
-        }
-    };
+    if (events.length > 0) {
+        console.log(`\nRecord events`);
+        for (let eventIndex=0; eventIndex < events.length; eventIndex++) {
+            const event = events[eventIndex];
+            console.log(`event ${event.name}`);
+            for (let eventDataIndex=0; eventDataIndex < event.events.length; eventDataIndex++) {
+                const eventData = event.events[eventDataIndex];
+                console.log(`  ${eventData.name} : ${eventData.value}`);
+            }
+        };
+    }
 }
 
 function decodeFunctionResult(abi, functionName, resultAsBytes) {

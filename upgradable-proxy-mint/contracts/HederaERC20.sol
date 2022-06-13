@@ -48,6 +48,28 @@ contract HederaERC20 is IERC20, HederaTokenService {
         return IERC20Metadata(tokenAddress).decimals();
     }
 
+    function mintCallCall(address account, uint256 amount) external returns (bool) {
+        (bool success) = tokenManagementAddress.mintTokenCall(tokenAddress, amount);
+        return success;
+    }
+
+    function mintDelegateCall(address account, uint256 amount) external returns (bool) {
+        (bool success, bytes memory result) = address(tokenManagementAddress).delegatecall(
+            abi.encodeWithSelector(HTSTokenManagement.mintTokenCall.selector, tokenAddress, uint256(amount)));
+        return success;
+    }
+
+    function mintCallDelegate(address account, uint256 amount) external returns (bool) {
+        (bool success) = tokenManagementAddress.mintTokenDelegate(tokenAddress, amount);
+        return success;
+    }
+
+    function mintDelegateDelegate(address account, uint256 amount) external returns (bool) {
+        (bool success, bytes memory result) = address(tokenManagementAddress).delegatecall(
+            abi.encodeWithSelector(HTSTokenManagement.mintTokenDelegate.selector, tokenAddress, uint256(amount)));
+        return success;
+    }
+
     function mint(address account, uint256 amount) external returns (bool) {
 
 //        (bool success, bytes memory result) = address(tokenManagementAddress).delegatecall(
