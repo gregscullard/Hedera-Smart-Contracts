@@ -13,7 +13,6 @@
     "@hashgraph/sdk": "2.14.2",
     "@openzeppelin/contracts": "^4.5.0",
     "@openzeppelin/contracts-upgradeable": "^4.5.2",
-    "abi-decoder": "^2.4.0",
     "bignumber.js": "^9.0.2",
     "chai": "^4.3.6",
     "dotenv": "^16.0.1",

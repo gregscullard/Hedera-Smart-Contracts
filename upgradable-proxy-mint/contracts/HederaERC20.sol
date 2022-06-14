@@ -6,25 +6,24 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import "./hip-206/HederaTokenService.sol";
-import "./HTSTokenManagement.sol";
+import "./HTSTokenOwner.sol";
 
 contract HederaERC20 is IERC20, HederaTokenService {
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
-    HTSTokenManagement tokenManagementAddress;
+    HTSTokenOwner HTSTokenOwnerAddress;
     address tokenAddress;
-    event LogMsgSenderERC(address who);
 
     uint64 constant MAX_INT = 2**64 - 1;
 
     constructor() {
     }
 
-    function setTokenAddress(HTSTokenManagement _tokenManagementAddress, address _tokenAddress) external {
+    function setTokenAddress(HTSTokenOwner _htsTokenOwnerAddress, address _tokenAddress) external {
         //TODO: Check contract address has not yet been set - this errors at the moment
         //require(tokenManagementAddress == address(0), "Token address management already defined");
         require(tokenAddress == address(0), "Token address already defined");
-        tokenManagementAddress = _tokenManagementAddress;
+        HTSTokenOwnerAddress = _htsTokenOwnerAddress;
         tokenAddress = _tokenAddress;
     }
 
@@ -48,40 +47,14 @@ contract HederaERC20 is IERC20, HederaTokenService {
         return IERC20Metadata(tokenAddress).decimals();
     }
 
-    function mintCallCall(address account, uint256 amount) external returns (bool) {
-        (bool success) = tokenManagementAddress.mintTokenCall(tokenAddress, amount);
-        return success;
-    }
-
-    function mintDelegateCall(address account, uint256 amount) external returns (bool) {
-        (bool success, bytes memory result) = address(tokenManagementAddress).delegatecall(
-            abi.encodeWithSelector(HTSTokenManagement.mintTokenCall.selector, tokenAddress, uint256(amount)));
-        return success;
-    }
-
-    function mintCallDelegate(address account, uint256 amount) external returns (bool) {
-        (bool success) = tokenManagementAddress.mintTokenDelegate(tokenAddress, amount);
-        return success;
-    }
-
-    function mintDelegateDelegate(address account, uint256 amount) external returns (bool) {
-        (bool success, bytes memory result) = address(tokenManagementAddress).delegatecall(
-            abi.encodeWithSelector(HTSTokenManagement.mintTokenDelegate.selector, tokenAddress, uint256(amount)));
-        return success;
-    }
-
     function mint(address account, uint256 amount) external returns (bool) {
 
-//        (bool success, bytes memory result) = address(tokenManagementAddress).delegatecall(
-//            abi.encodeWithSelector(HTSTokenManagement.mintToken.selector, tokenAddress, uint256(amount)));
+        (bool success) = HTSTokenOwnerAddress.mintToken(tokenAddress, amount);
+        require(success, "Minting error");
 
-//        emit LogMsgSenderERC(msg.sender);
+        _transfer(address(HTSTokenOwnerAddress), account, amount);
 
-        (bool success) = tokenManagementAddress.mintToken(tokenAddress, amount);
-
-        //        require(success, "Minting error");
         return success;
-        //        _transfer(address(this), account, amount);
     }
 
     function transfer(address to, uint256 amount) external returns (bool) {
@@ -106,7 +79,7 @@ contract HederaERC20 is IERC20, HederaTokenService {
     function _transfer(address from, address to, uint256 amount) internal returns (bool) {
         require(balanceOf(from) >= amount, "Insufficient token balance");
 
-        bool result = tokenManagementAddress.transfer(tokenAddress, from, to, amount);
+        bool result = HTSTokenOwnerAddress.transfer(tokenAddress, from, to, amount);
         require(result, "Transfer error");
         return true;
     }

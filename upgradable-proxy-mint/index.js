@@ -2,12 +2,11 @@ const {TokenCreateTransaction, FileCreateTransaction, FileAppendTransaction, Acc
     ContractCreateTransaction, TokenType, TokenSupplyType, Hbar, Client, ContractId, AccountCreateTransaction, KeyList,
     ContractUpdateTransaction, ContractInfoQuery, ContractExecuteTransaction,
     ContractFunctionParameters, TokenUpdateTransaction, TokenInfoQuery, TokenAssociateTransaction, ContractCallQuery,
-    AccountBalanceQuery, TransferTransaction, HbarUnit
+    AccountBalanceQuery, TransferTransaction, HbarUnit, DelegateContractId
 } = require("@hashgraph/sdk");
 const Web3 = require ("web3");
 const dotenv = require("dotenv");
 const web3 = new Web3('http://localhost:8545');
-const abiDecoder = require("abi-decoder");
 
 dotenv.config({ path: '../.env' });
 
@@ -17,6 +16,10 @@ const tokenManagementContractJson = require("./build/contracts/HTSTokenManagemen
 
 let client;
 let tokenId;
+let adminKey;
+let aliceKey;
+let adminAccount;
+let aliceAccount;
 
 async function main() {
 
@@ -33,54 +36,7 @@ async function main() {
         operatorKey
     );
 
-    // reuse accounts if they exist in .env
-    const adminAccountEnv = process.env.ADMIN_ACCOUNT;
-    const adminKeyEnv = process.env.ADMIN_KEY;
-    const aliceAccountEnv = process.env.ALICE_ACCOUNT;
-    const aliceKeyEnv = process.env.ALICE_KEY;
-
-    let adminKey;
-    let aliceKey;
-    let adminAccount;
-    let aliceAccount;
-    if (adminAccountEnv) {
-        console.log(`\nRe-using accounts`);
-        adminKey = PrivateKey.fromStringED25519(adminKeyEnv);
-        adminAccount = AccountId.fromString(adminAccountEnv);
-        aliceKey = PrivateKey.fromStringED25519(aliceKeyEnv);
-        aliceAccount = AccountId.fromString(aliceAccountEnv);
-
-        // top up existing accounts
-        await topUp(adminAccount);
-        await topUp(aliceAccount);
-    } else {
-        console.log(`\nCreating new accounts`);
-        adminKey = PrivateKey.generateED25519();
-        aliceKey = PrivateKey.generateED25519();
-
-        let createAccountTx = await new AccountCreateTransaction()
-            .setKey(adminKey.publicKey)
-            .setInitialBalance(100)
-            .execute(client);
-
-        let createAccountRx = await createAccountTx.getReceipt(client);
-        adminAccount = createAccountRx.accountId;
-
-        createAccountTx = await new AccountCreateTransaction()
-            .setKey(aliceKey.publicKey)
-            .setInitialBalance(100)
-            .execute(client);
-
-        createAccountRx = await createAccountTx.getReceipt(client);
-        aliceAccount = createAccountRx.accountId;
-    }
-
-    console.log(`- Admin account is ${adminAccount.toString()} (${adminAccount.toSolidityAddress()})`);
-    console.log(`- Admin priv key ${adminKey.toStringRaw()}`);
-    console.log(`- Admin pub key ${adminKey.publicKey.toStringRaw()}`);
-    console.log(`- Alice account is ${aliceAccount.toString()} (${aliceAccount.toSolidityAddress()})`);
-    console.log(`- Alice priv key ${aliceKey.toStringRaw()}`);
-    console.log(`- Alice pub key ${aliceKey.publicKey.toStringRaw()}`);
+    await setupAccounts();
 
     // switch client to admin
     console.log(`\nSwitching operator to Admin`);
@@ -187,7 +143,8 @@ async function main() {
     console.log(`\nUpdate the token so that the token owner contract is the supply and treasury`);
     const tokenUpdateTx = await new TokenUpdateTransaction()
         .setTokenId(tokenId)
-        .setSupplyKey(ContractId.fromString(tokenOwnerContractId))
+        // .setSupplyKey(ContractId.fromString(tokenOwnerContractId))
+        .setSupplyKey(DelegateContractId.fromString(tokenOwnerContractId))
         .setTreasuryAccountId(tokenOwnerContractId)
         .execute(client);
 
@@ -249,36 +206,25 @@ async function main() {
     console.log(`\nSwitching operator to admin`);
     client.setOperator(adminAccount, adminKey);
 
-    console.log("\nCalling mint - ERC20 calls management / management calls precompile");
-    await callMintContract("mintCallCall", contractToInvoke, contractFunctionParameters);
-    console.log("\nCalling mint - ERC20 calls management / management delegate calls precompile");
-    await callMintContract("mintCallDelegate", contractToInvoke, contractFunctionParameters);
-    console.log("\nCalling mint - ERC20 delegate calls management / management calls precompile");
-    await callMintContract("mintDelegateCall", contractToInvoke, contractFunctionParameters);
-    console.log("\nCalling mint - ERC20 delegate calls management / management delegate calls precompile");
-    await callMintContract("mintDelegateDelegate", contractToInvoke, contractFunctionParameters);
+    console.log("\nCalling mint via proxy");
+    await callMintContract("mint", contractToInvoke, contractFunctionParameters);
 
     // switch client to alice
     // note Alice should have no "authority" on the token, but the contract has
-    // console.log(`\nSwitching operator to Alice`);
-    // client.setOperator(aliceAccount, aliceKey);
-    //
-    // console.log("Calling mint call call");
-    // await callMintContract("mintCallCall", contractToInvoke, contractFunctionParameters);
-    // console.log("Calling mint call delegate");
-    // await callMintContract("mintCallDelegate", contractToInvoke, contractFunctionParameters);
-    // console.log("Calling mint delegate call");
-    // await callMintContract("mintDelegateCall", contractToInvoke, contractFunctionParameters);
-    // console.log("Calling mint delegate delegate");
-    // await callMintContract("mintDelegateDelegate", contractToInvoke, contractFunctionParameters);
-    //
-    // console.log(`\nChecking Alice Balance`);
-    //
-    // const aliceBalance = await new AccountBalanceQuery()
-    //     .setAccountId(aliceAccount)
-    //     .execute(client);
-    //
-    // console.log(aliceBalance.tokens.get(tokenId.toString()));
+    console.log(`\nSwitching operator to Alice`);
+    client.setOperator(aliceAccount, aliceKey);
+
+    console.log(`\nMinting 1 (100) to Alice`);
+    console.log("\nCalling mint via proxy");
+    await callMintContract("mint", contractToInvoke, contractFunctionParameters);
+
+    console.log(`\nChecking Alice Balance`);
+
+    const aliceBalance = await new AccountBalanceQuery()
+        .setAccountId(aliceAccount)
+        .execute(client);
+
+    console.log(aliceBalance.tokens.get(tokenId.toString()));
 
     client.close();
 }
@@ -297,10 +243,6 @@ async function callMintContract(functionName, contractToInvoke, contractFunction
 
         console.log(`result should be true`);
         decodeFunctionResult(erc20ContractJson.abi, functionName, record.contractFunctionResult.asBytes());
-
-        // show logs
-        await showLogs(tokenManagementContractJson, record);
-        await showLogs(erc20ContractJson, record);
 
         console.log(`\nToken Query to check token supply`);
         const tokenInfo = await new TokenInfoQuery()
@@ -362,47 +304,52 @@ async function topUp(targetAccount) {
     }
 }
 
-async function showLogs(tokenManagementContractJson, record) {
-    abiDecoder.addABI(tokenManagementContractJson.abi);
+async function setupAccounts() {
+    // reuse accounts if they exist in .env
+    const adminAccountEnv = process.env.ADMIN_ACCOUNT;
+    const adminKeyEnv = process.env.ADMIN_KEY;
+    const aliceAccountEnv = process.env.ALICE_ACCOUNT;
+    const aliceKeyEnv = process.env.ALICE_KEY;
 
-    // the events from the function call are in record.contractFunctionResult.logs.data
-    // let's parse the logs using abi-decoder
-    // there may be several log entries
+    if (adminAccountEnv) {
+        console.log(`\nRe-using accounts`);
+        adminKey = PrivateKey.fromStringED25519(adminKeyEnv);
+        adminAccount = AccountId.fromString(adminAccountEnv);
+        aliceKey = PrivateKey.fromStringED25519(aliceKeyEnv);
+        aliceAccount = AccountId.fromString(aliceAccountEnv);
 
-    const logs = []
+        // top up existing accounts
+        await topUp(adminAccount);
+        await topUp(aliceAccount);
+    } else {
+        console.log(`\nCreating new accounts`);
+        adminKey = PrivateKey.generateED25519();
+        aliceKey = PrivateKey.generateED25519();
 
-    record.contractFunctionResult.logs.forEach(log => {
-        const logJson = {
-            data: "",
-            topics: []
-        }
+        let createAccountTx = await new AccountCreateTransaction()
+            .setKey(adminKey.publicKey)
+            .setInitialBalance(100)
+            .execute(client);
 
-        // convert the log.data (uint8Array) to a string
-        logJson.data = '0x'.concat(Buffer.from(log.data).toString('hex'));
+        let createAccountRx = await createAccountTx.getReceipt(client);
+        adminAccount = createAccountRx.accountId;
 
-        // get topics from log
-        log.topics.forEach(topic => {
-            logJson.topics.push('0x'.concat(Buffer.from(topic).toString('hex')));
-        });
+        createAccountTx = await new AccountCreateTransaction()
+            .setKey(aliceKey.publicKey)
+            .setInitialBalance(100)
+            .execute(client);
 
-        logs.push(logJson);
-    });
-
-    const events = abiDecoder.decodeLogs(logs);
-
-    if (events.length > 0) {
-        console.log(`\nRecord events`);
-        for (let eventIndex=0; eventIndex < events.length; eventIndex++) {
-            const event = events[eventIndex];
-            console.log(`event ${event.name}`);
-            for (let eventDataIndex=0; eventDataIndex < event.events.length; eventDataIndex++) {
-                const eventData = event.events[eventDataIndex];
-                console.log(`  ${eventData.name} : ${eventData.value}`);
-            }
-        };
+        createAccountRx = await createAccountTx.getReceipt(client);
+        aliceAccount = createAccountRx.accountId;
     }
-}
 
+    console.log(`- Admin account is ${adminAccount.toString()} (${adminAccount.toSolidityAddress()})`);
+    console.log(`- Admin priv key ${adminKey.toStringRaw()}`);
+    console.log(`- Admin pub key ${adminKey.publicKey.toStringRaw()}`);
+    console.log(`- Alice account is ${aliceAccount.toString()} (${aliceAccount.toSolidityAddress()})`);
+    console.log(`- Alice priv key ${aliceKey.toStringRaw()}`);
+    console.log(`- Alice pub key ${aliceKey.publicKey.toStringRaw()}`);
+}
 function decodeFunctionResult(abi, functionName, resultAsBytes) {
     const functionAbi = abi.find(func => func.name === functionName);
     const functionParameters = functionAbi.outputs;

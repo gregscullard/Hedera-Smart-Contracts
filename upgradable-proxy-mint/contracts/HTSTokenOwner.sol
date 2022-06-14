@@ -3,10 +3,9 @@ pragma solidity ^0.8.10;
 
 import "./hip-206/HederaTokenService.sol";
 
-contract HTSTokenManagement is HederaTokenService {
+contract HTSTokenOwner is HederaTokenService {
 
     address public erc20address;
-    event LogMsgSender(address who);
 
     constructor() {
     }
@@ -16,31 +15,12 @@ contract HTSTokenManagement is HederaTokenService {
         erc20address = _erc20address;
     }
 
-    function mintTokenCall(address tokenAddress, uint256 amount) external returns (bool) {
-        (int256 responseCode, uint64 newTotalSupply, int64[] memory serialNumbers) = HederaTokenService
-        .mintToken(tokenAddress, uint64(amount), new bytes[](0));
-        return _checkResponse(responseCode);
-    }
-
-    function mintTokenDelegate(address tokenAddress, uint256 amount) external returns (bool) {
-        (bool success, bytes memory result) = precompileAddress.delegatecall(
-            abi.encodeWithSelector(IHederaTokenService.mintToken.selector, tokenAddress, uint256(amount), new bytes[](0)));
-        return success;
-    }
-
     function mintToken(address tokenAddress, uint256 amount) external returns (bool) {
         //TODO: check the ERC20 contract is calling this function
         //        require (msg.sender == erc20address, toString(abi.encodePacked(msg.sender)));
-
-        //        emit LogMsgSender(msg.sender);
-        //                return true;
         (int256 responseCode, uint64 newTotalSupply, int64[] memory serialNumbers) = HederaTokenService
-        .mintToken(tokenAddress, uint64(amount), new bytes[](0));
+            .mintToken(tokenAddress, uint64(amount), new bytes[](0));
         return _checkResponse(responseCode);
-
-        //        (bool success, bytes memory result) = precompileAddress.delegatecall(
-        //            abi.encodeWithSelector(IHederaTokenService.mintToken.selector, tokenAddress, uint256(amount), new bytes[](0)));
-        //        return success;
     }
 
     function transfer(address tokenAddress, address from, address to, uint256 amount) external returns (bool) {
