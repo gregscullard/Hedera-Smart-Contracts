@@ -12,7 +12,7 @@ dotenv.config({ path: '../.env' });
 
 const erc20ContractJson = require("./build/contracts/HederaERC20.json");
 const proxyContractJson = require("./build/contracts/ERC1967Proxy.json");
-const tokenManagementContractJson = require("./build/contracts/HTSTokenManagement.json");
+const tokenOwnerContractJson = require("./build/contracts/HTSTokenOwner.json");
 
 let client;
 let tokenId;
@@ -44,61 +44,22 @@ async function main() {
 
     client.setDefaultMaxTransactionFee(new Hbar(50));
 
-    let erc20ContractAdminKey = null;
-    let proxyContractAdminKey = null;
-    let tokenManagementAdminKey = null;
-
-    // specify which contract should "own" the token
-    // const contractOwningToken = "ERC20";
-    // const contractOwningToken = "Proxy";
-    const contractOwningToken = "Management";
-
-    switch (contractOwningToken) {
-        case 'ERC20':
-            erc20ContractAdminKey = adminKey;
-            break;
-        case 'Proxy':
-            proxyContractAdminKey = adminKey;
-            break;
-        case 'Management':
-            tokenManagementAdminKey = adminKey;
-            break;
-        default:
-            console.log(`Invalid contractOwningToken ${contractOwningToken}`);
-            return;
-    }
+    let tokenOwnerAdminKey = adminKey;
 
     console.log(`\nDeploying ERC20 contract`);
-    const erc20ContractId = await deployContract(erc20ContractJson.bytecode, adminKey, null, erc20ContractAdminKey);
+    const erc20ContractId = await deployContract(erc20ContractJson.bytecode, adminKey, null, null);
     console.log(`- ERC20 Contract created ${erc20ContractId} (${ContractId.fromString(erc20ContractId).toSolidityAddress()})`);
 
     console.log(`\nDeploying Proxy contract`);
     const constructorParameters = new ContractFunctionParameters()
         .addAddress(ContractId.fromString(erc20ContractId).toSolidityAddress())
         .addBytes(new Uint8Array([]));
-    const proxyContractId = await deployContract(proxyContractJson.bytecode, adminKey, constructorParameters, proxyContractAdminKey);
+    const proxyContractId = await deployContract(proxyContractJson.bytecode, adminKey, constructorParameters, null);
     console.log(`- Proxy Contract created ${proxyContractId} (${ContractId.fromString(proxyContractId).toSolidityAddress()})`);
 
-    console.log(`\nDeploying Token Management contract`);
-    const tokenManagementContractId = await deployContract(tokenManagementContractJson.bytecode, adminKey, null, tokenManagementAdminKey);
-    console.log(`- Token Management Contract created ${tokenManagementContractId} (${ContractId.fromString(tokenManagementContractId).toSolidityAddress()})`);
-
-    // set the id of the contract that will own the token (Treasury + supplyKey)
-    let tokenOwnerContractId = null;
-    switch (contractOwningToken) {
-        case 'ERC20':
-            tokenOwnerContractId = erc20ContractId;
-            break;
-        case 'Proxy':
-            tokenOwnerContractId = proxyContractId;
-            break;
-        case 'Management':
-            tokenOwnerContractId = tokenManagementContractId;
-            break;
-        default:
-            console.log(`Invalid contractOwningToken ${contractOwningToken}`);
-            return;
-    }
+    console.log(`\nDeploying Token Owner contract`);
+    const tokenOwnerContractId = await deployContract(tokenOwnerContractJson.bytecode, adminKey, null, tokenOwnerAdminKey);
+    console.log(`- Token Owner Contract created ${tokenOwnerContractId} (${ContractId.fromString(tokenOwnerContractId).toSolidityAddress()})`);
 
     const contractToInvoke = proxyContractId;
 
@@ -151,7 +112,7 @@ async function main() {
     await tokenUpdateTx.getReceipt(client);
     console.log(`- Token updated`);
 
-    console.log(`\nToken Query to check admin and treasury are now the management contract`);
+    console.log(`\nToken Query to check admin and treasury are now the owner contract`);
     let tokenInfo = await new TokenInfoQuery()
         .setTokenId(tokenId)
         .execute(client);
@@ -175,7 +136,7 @@ async function main() {
 
     console.log(`\nCall the proxy contract to set the token id in the ERC20 contract`);
     let contractFunctionParameters = new ContractFunctionParameters()
-        .addAddress(ContractId.fromString(tokenManagementContractId).toSolidityAddress())
+        .addAddress(ContractId.fromString(tokenOwnerContractId).toSolidityAddress())
         .addAddress(tokenId.toSolidityAddress());
 
     let contractTx = await new ContractExecuteTransaction()
@@ -185,12 +146,12 @@ async function main() {
         .execute(client);
     await contractTx.getReceipt(client);
 
-    console.log(`\nCall the Token Management contract to set the ERC20 contract`);
+    console.log(`\nCall the Token Owner contract to set the ERC20 contract`);
     contractFunctionParameters = new ContractFunctionParameters()
         .addAddress(ContractId.fromString(erc20ContractId).toSolidityAddress());
 
     contractTx = await new ContractExecuteTransaction()
-        .setContractId(tokenManagementContractId)
+        .setContractId(tokenOwnerContractId)
         .setFunction("setERC20Address", contractFunctionParameters)
         .setGas(500000)
         .execute(client);
