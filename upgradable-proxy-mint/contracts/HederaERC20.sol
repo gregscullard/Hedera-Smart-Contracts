@@ -48,7 +48,7 @@ contract HederaERC20 is IERC20, HederaTokenService {
     }
 
     function mint(address account, uint256 amount) external returns (bool) {
-
+        // Verify approvals for minting for msg.sender
         (bool success) = HTSTokenOwnerAddress.mintToken(tokenAddress, amount);
         require(success, "Minting error");
 
