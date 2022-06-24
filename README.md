@@ -23,3 +23,11 @@ The example also queries `MomContract` and `DaughterContract` to show the constr
 
 Demonstrates how to create a contract and a token, allocating the contract to be the token's treasury and supply key.
 This enables the contract to mint and burn the token.
+
+### upgradable-proxy-mint
+
+Demonstrates how to create an upgradable contract that manages a native token.
+
+### nft-escrow
+
+Shows how a contract can be used to escrow an NFT with an asking price so that it can be purchased by a third party.
