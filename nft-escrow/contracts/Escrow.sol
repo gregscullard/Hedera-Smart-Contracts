@@ -4,12 +4,25 @@ pragma experimental ABIEncoderV2;
 
 import "./HederaTokenService.sol";
 import "./HederaResponseCodes.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 contract Escrow is HederaTokenService {
 
-    function list(address tokenAddress, int64 serial, uint256 price) external {
+    function list(address tokenAddress, uint256 serial, uint256 price) external {
         // associate contract with tokenId
         HederaTokenService.associateToken(address(this), tokenAddress);
-        HederaTokenService.transferNFT(tokenAddress, msg.sender, address(this), serial);
+                ( bool success, ) = tokenAddress.delegatecall(
+                    abi.encodeWithSelector(
+                        IERC721.transferFrom.selector,
+                        msg.sender,
+                        address(this),
+                        serial
+                    )
+                );
+
+        if (!success) {
+            // This error gets thrown
+            revert("transfer failed!");
+        }
     }
 }
