@@ -1,13 +1,13 @@
 const {AccountId, PrivateKey,
     Client, ContractId,
     ContractExecuteTransaction,
-    ContractFunctionParameters, TokenId
+    TokenId
 } = require("@hashgraph/sdk");
 const dotenv = require("dotenv");
 const { Interface } = require("@ethersproject/abi");
 const escrowContractJSON = require("../build/Escrow.json");
-const {topUp, deployContract, setEnv} = require("./Utils");
-const {encodeFunctionParameters} = require("./utils");
+const {topUp , encodeFunctionParameters} = require("./utils");
+const pathToEnvFile = '../.scriptenv';
 
 dotenv.config({ path: '../../.env' });
 
@@ -27,6 +27,8 @@ async function main() {
             AccountId.fromString(process.env.OPERATOR_ID),
             operatorKey
         );
+
+        dotenv.config({ path: pathToEnvFile });
 
         const aliceKey = PrivateKey.fromStringED25519(process.env.ESCROW_ALICE_KEY);
         const aliceAccount = AccountId.fromString(process.env.ESCROW_ALICE_ACCOUNT);

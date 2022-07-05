@@ -1,4 +1,5 @@
 const dotenv = require("dotenv");
+
 const fs = require("fs");
 const {parse, stringify} = require("envfile");
 const {AccountBalanceQuery, Hbar, HbarUnit, TransferTransaction, AccountId,
@@ -6,7 +7,6 @@ const {AccountBalanceQuery, Hbar, HbarUnit, TransferTransaction, AccountId,
     FileAppendTransaction,
     ContractCreateTransaction, AccountCreateTransaction
 } = require("@hashgraph/sdk");
-const escrowContractJSON = require("../build/Escrow.json");
 const pathToEnvFile = '../.scriptenv';
 
 function getEnv(key) {

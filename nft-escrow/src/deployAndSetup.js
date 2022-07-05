@@ -6,18 +6,19 @@ const dotenv = require("dotenv");
 const escrowContractJSON = require("../build/Escrow.json");
 const {setEnv, createAccount, deployContract, topUp} = require("./Utils");
 
-dotenv.config({ path: '../../.env' });
-
-const client = Client.forNetwork(process.env.HEDERA_NETWORK);
-
 async function main() {
 
+    dotenv.config({ path: '../../.env' });
+    const client = Client.forNetwork(process.env.HEDERA_NETWORK);
     const operatorKey = PrivateKey.fromString(process.env.OPERATOR_KEY);
 
     client.setOperator(
         AccountId.fromString(process.env.OPERATOR_ID),
         operatorKey
     );
+
+    // local local env
+    dotenv.config({ path: '../.scriptenv' });
 
     let aliceKey = process.env.ESCROW_ALICE_KEY;
     let aliceAccount = process.env.ESCROW_ALICE_ACCOUNT;

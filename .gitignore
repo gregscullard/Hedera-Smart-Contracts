@@ -8,3 +8,4 @@ typechain
 .idea
 build
 cache
+.scriptenv

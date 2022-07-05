@@ -31,3 +31,7 @@ Demonstrates how to create an upgradable contract that manages a native token.
 ### nft-escrow
 
 Shows how a contract can be used to escrow an NFT with an asking price so that it can be purchased by a third party.
+
+### token-allowances
+
+Shows how a contract can be used to manage fungible and non-fungible token allowances
