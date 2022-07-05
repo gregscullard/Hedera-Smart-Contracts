@@ -50,5 +50,5 @@ truffle compile --all
 ## Run
 
 ```shell
-node index.js 
+node deployAndSetup.js 
 ```
