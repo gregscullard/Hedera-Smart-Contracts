@@ -10,7 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "@hashgraph/hethers": "^1.0.3",
-    "@hashgraph/sdk": "2.14.2",
+    "@hashgraph/sdk": "2.16.2",
     "@openzeppelin/contracts": "^4.5.0",
     "@openzeppelin/contracts-upgradeable": "^4.5.2",
     "bignumber.js": "^9.0.2",
