@@ -31,6 +31,7 @@ async function topUp(client, targetAccount) {
     const targetBalance = 100;
 
     const balance = await new AccountBalanceQuery()
+        // .setNodeAccountIds([AccountId.fromString('0.0.5')])
         .setAccountId(targetAccount)
         .execute(client);
 
@@ -38,6 +39,7 @@ async function topUp(client, targetAccount) {
         const topUp = Hbar.fromTinybars(Hbar.from(targetBalance, HbarUnit.Hbar).toTinybars() - balance.hbars.toTinybars());
         console.log(`topping up account ${targetAccount} with ${topUp.toString(HbarUnit.Hbar)}`);
         await new TransferTransaction()
+            // .setNodeAccountIds([AccountId.fromString('0.0.5')])
             .addHbarTransfer(client.operatorAccountId, topUp.negated())
             .addHbarTransfer(targetAccount, topUp)
             .execute(client);
@@ -46,6 +48,7 @@ async function topUp(client, targetAccount) {
 
 async function createAccount(client, key, initialBalance) {
     const createAccountTx = await new AccountCreateTransaction()
+        // .setNodeAccountIds([AccountId.fromString('0.0.5')])
         .setKey(key)
         .setInitialBalance(initialBalance)
         .execute(client);
@@ -65,6 +68,7 @@ async function deployContract(client, contractByteCode, gas, constructParameters
 
     // Append contents to the file
     const fileAppendTx = await new FileAppendTransaction()
+        // .setNodeAccountIds([AccountId.fromString('0.0.5')])
         .setFileId(bytecodeFileId)
         .setContents(contractByteCode)
         .setMaxChunks(10)
@@ -74,6 +78,7 @@ async function deployContract(client, contractByteCode, gas, constructParameters
 
     console.log(`\nDeploy  contract`);
     const contractCreateTx = new ContractCreateTransaction()
+        // .setNodeAccountIds([AccountId.fromString('0.0.5')])
         .setBytecodeFileId(bytecodeFileId)
         .setGas(gas);
     if (constructParameters) {

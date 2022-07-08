@@ -1,5 +1,5 @@
 const {TokenCreateTransaction, AccountId, PrivateKey,
-    Client, TokenAssociateTransaction, ContractExecuteTransaction, ContractCallQuery, Hbar
+    Client, TokenAssociateTransaction, ContractExecuteTransaction, ContractCallQuery, Hbar, TokenId
 } = require("@hashgraph/sdk");
 const dotenv = require("dotenv");
 const allowContractJSON = require("../build/Allowances.json");
@@ -7,14 +7,24 @@ const {setEnv, createAccount, deployContract, topUp} = require("./Utils");
 const {Interface} = require("@ethersproject/abi");
 const {encodeFunctionParameters} = require("./utils");
 
+let abiInterface;
+let client;
+let allowContractId;
+let tokenId;
+
 async function main() {
 
     dotenv.config({ path: '../../.env' });
-    const client = Client.forNetwork(process.env.HEDERA_NETWORK);
+
+    client = Client.forNetwork(process.env.HEDERA_NETWORK);
+    // const nodes = {"2.testnet.hedera.com:50211": new AccountId(5)};
+    // client = Client.forNetwork(nodes);
     const operatorKey = PrivateKey.fromString(process.env.OPERATOR_KEY);
+    const operatorId = AccountId.fromString(process.env.OPERATOR_ID);
+
 
     client.setOperator(
-        AccountId.fromString(process.env.OPERATOR_ID),
+        AccountId.fromString(operatorId),
         operatorKey
     );
 
@@ -49,7 +59,7 @@ async function main() {
     console.log(`Alice account is ${aliceAccount.toString()} (${aliceAccount.toSolidityAddress()})`);
     console.log(`Bob account is ${bobAccount.toString()} (${bobAccount.toSolidityAddress()})`);
 
-    const allowContractId = await deployContract(client, allowContractJSON.bytecode, 100000, null);
+    allowContractId = await deployContract(client, allowContractJSON.bytecode, 100000, null);
     setEnv("ALLOW_CONTRACT_ID", allowContractId.toString());
     console.log(`- Contract Id ${allowContractId.toString()} (${allowContractId.toSolidityAddress()})`);
 
@@ -58,6 +68,7 @@ async function main() {
 
     console.log(`\nCreating Fungible Token`);
     const tokenCreateTx = await new TokenCreateTransaction()
+        // .setNodeAccountIds([AccountId.fromString('0.0.5')])
         .setTokenName("test")
         .setTokenSymbol("tst")
         .setSupplyKey(bobAliceKey)
@@ -66,13 +77,14 @@ async function main() {
         .execute(client);
 
     const tokenCreateRx = await tokenCreateTx.getReceipt(client);
-    const tokenId = tokenCreateRx.tokenId;
+    tokenId = tokenCreateRx.tokenId;
     console.log(`- Token Id ${tokenId} (${tokenId.toSolidityAddress()})`);
     // write tokenId to .env file
     setEnv("ALLOW_TOKEN_ID", tokenId.toString());
 
     // associate bob with the token
     const associateTx = await new TokenAssociateTransaction()
+        // .setNodeAccountIds([AccountId.fromString('0.0.5')])
         .setTokenIds([tokenId])
         .setAccountId(bobAccount)
         .execute(client);
@@ -80,12 +92,14 @@ async function main() {
     await associateTx.getReceipt(client);
 
     // call the contract approveToken(address tokenAddress, address spender, uint256 amount) external returns (bool result) {
-    const abiInterface = new Interface(allowContractJSON.abi);
+    abiInterface = new Interface(allowContractJSON.abi);
     let functionCallAsUint8Array = encodeFunctionParameters(abiInterface,'approveTokenDelegate',  [tokenId.toSolidityAddress(), bobAccount.toSolidityAddress(), 10]);
 
     const contractAllowTx = await new ContractExecuteTransaction()
+        // .setNodeAccountIds([AccountId.fromString('0.0.5')])
         .setContractId(allowContractId)
         .setFunctionParameters(functionCallAsUint8Array)
+        .setPayableAmount()
         .setGas(1000000)
         .execute(client);
     let record = await contractAllowTx.getRecord(client);
@@ -97,32 +111,44 @@ async function main() {
     console.log(results);
 
     // now check the allowance using the contract
-    functionCallAsUint8Array = encodeFunctionParameters(abiInterface,'checkAllowance',  [tokenId.toSolidityAddress(), aliceAccount.toSolidityAddress(), bobAccount.toSolidityAddress()]);
+    await checkAllowance(aliceAccount, bobAccount);
+    // await checkAllowance(aliceAccount, client.operatorAccountId);
+    // await checkAllowance(bobAccount, aliceAccount);
+    // await checkAllowance(bobAccount, client.operatorAccountId);
+    await checkAllowance(aliceAccount, operatorId);
+    await checkAllowance(operatorId, aliceAccount);
+
+    // Querying fails for now
+    // // query the contract
+    // const contractCall = await new ContractCallQuery()
+    //     .setContractId(allowContractId)
+    //     .setFunctionParameters(functionCallAsUint8Array)
+    //     .setQueryPayment(new Hbar(2))
+    //     .setGas(100000)
+    //     .execute(client);
+    //
+    // results = abiInterface.decodeFunctionResult('checkAllowance', contractCall.bytes);
+    // console.log(results);
+
+    client.close();
+}
+
+async function checkAllowance(owner, spender) {
+    const functionCallAsUint8Array = encodeFunctionParameters(abiInterface,'checkAllowance',  [tokenId.toSolidityAddress(), owner.toSolidityAddress(), spender.toSolidityAddress()]);
     const contractQueryTx = await new ContractExecuteTransaction()
+        // .setNodeAccountIds([AccountId.fromString('0.0.5')])
         .setContractId(allowContractId)
         .setFunctionParameters(functionCallAsUint8Array)
         .setGas(1000000)
         .execute(client);
-    record = await contractQueryTx.getRecord(client);
+    const record = await contractQueryTx.getRecord(client);
 
     console.log(`Query transaction complete ${contractQueryTx.transactionId}`)
 
     // process the response from the call
-    results = abiInterface.decodeFunctionResult('checkAllowance', record.contractFunctionResult.bytes);
+    const results = abiInterface.decodeFunctionResult('checkAllowance', record.contractFunctionResult.bytes);
     console.log(results);
 
-    // query the contract
-    const contractCall = await new ContractCallQuery()
-        .setContractId(allowContractId)
-        .setFunctionParameters(functionCallAsUint8Array)
-        .setQueryPayment(new Hbar(2))
-        .setGas(100000)
-        .execute(client);
-
-    results = abiInterface.decodeFunctionResult('checkAllowance', contractCall.bytes);
-    console.log(results);
-
-    client.close();
 }
 
 main();
