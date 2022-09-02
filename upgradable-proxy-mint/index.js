@@ -285,7 +285,7 @@ async function setupAccounts() {
     } else {
         console.log(`\nCreating new accounts`);
         adminKey = PrivateKey.generateED25519();
-        aliceKey = PrivateKey.generateED25519();
+        aliceKey = PrivateKey.generateECDSA();
 
         let createAccountTx = await new AccountCreateTransaction()
             .setKey(adminKey.publicKey)

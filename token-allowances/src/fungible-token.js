@@ -1,5 +1,5 @@
 const {TokenCreateTransaction, AccountId, PrivateKey,
-    Client, TokenAssociateTransaction, ContractExecuteTransaction, ContractCallQuery, Hbar, TokenId
+    Client, TokenAssociateTransaction, ContractExecuteTransaction, ContractCallQuery, Hbar, TokenId, ContractId
 } = require("@hashgraph/sdk");
 const dotenv = require("dotenv");
 const allowContractJSON = require("../build/Allowances.json");
