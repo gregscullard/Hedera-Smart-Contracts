@@ -2,6 +2,7 @@
 pragma solidity ^0.8.10;
 
 import "./hip-206/HederaTokenService.sol";
+import "./HTSInterface.sol";
 
 contract HTSLogic is HederaTokenService {
 
@@ -23,5 +24,35 @@ contract HTSLogic is HederaTokenService {
         require(success);
         (int256 responseCode, , ) = abi.decode(result, (int256, uint64, int64[]));
         require(responseCode == HederaResponseCodes.SUCCESS, "Error");
+    }
+
+    function mintCallInterfaceCall(HTSInterface interfaceAddress, address tokenAddress) external returns (int256) {
+        return interfaceAddress.mintCall(tokenAddress);
+    }
+
+    function mintCallInterfaceDelegate(HTSInterface interfaceAddress, address tokenAddress) external returns (int256) {
+        return interfaceAddress.mintDelegate(tokenAddress);
+    }
+
+    function mintDelegateInterfaceCall(HTSInterface interfaceAddress, address tokenAddress) external returns (int256) {
+        (bool success, bytes memory result) = address(interfaceAddress).delegatecall(
+            abi.encodeWithSignature("mintCall(address)", tokenAddress)
+        );
+
+        require(success);
+        (int256 responseCode, , ) = abi.decode(result, (int256, uint64, int64[]));
+//        require(responseCode == HederaResponseCodes.SUCCESS, "Error");
+        return responseCode;
+    }
+
+    function mintDelegateInterfaceDelegate(HTSInterface interfaceAddress, address tokenAddress) external returns (int256) {
+        (bool success, bytes memory result) = address(interfaceAddress).delegatecall(
+            abi.encodeWithSignature("mintDelegate(address)", tokenAddress)
+        );
+
+        require(success);
+        (int256 responseCode, , ) = abi.decode(result, (int256, uint64, int64[]));
+//        require(responseCode == HederaResponseCodes.SUCCESS, "Error");
+        return responseCode;
     }
 }
