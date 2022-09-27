@@ -30,7 +30,7 @@ npm run build # to recompile the contracts (ignore warnings)
 
 ```shell
 cd src
-node test01.js 
+node test.js 
 ```
 
 outputs (your own contract IDs and addresses will vary)
