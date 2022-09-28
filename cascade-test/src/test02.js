@@ -12,52 +12,30 @@ const logicContractJson = require("../build/Logic.json");
 const msgSenderContractJson = require("../build/MsgSender.json");
 const proxyContractJson = require("../build/HederaERC1967Proxy.json")
 const Web3 = require("web3");
+const {getClient, createContract} = require("./utils");
 const web3 = new Web3;
-let logicContractId;
-let msgSenderContractId;
-let proxyContractId;
 
 let client;
+let logicContractId;
+let proxyContractId;
+let msgSenderContractId;
 
 async function main() {
 
-    client = Client.forName(process.env.HEDERA_NETWORK);
-    client.setOperator(
-        AccountId.fromString(process.env.OPERATOR_ID),
-        PrivateKey.fromString(process.env.OPERATOR_KEY)
-    );
+    client = getClient();
 
     console.log(`Deploying logic contract`);
-    let response = await new ContractCreateFlow()
-        .setBytecode(logicContractJson.bytecode)
-        .setGas(100000)
-        .execute(client);
-
-    let receipt = await response.getReceipt(client);
-    logicContractId = receipt.contractId;
+    logicContractId = await createContract(client, logicContractJson, 100000);
 
     console.log(`Deploying proxy contract`);
     const constructorParameters = new ContractFunctionParameters()
         .addAddress(logicContractId.toSolidityAddress())
         .addBytes(new Uint8Array([]));
 
-    response = await new ContractCreateFlow()
-        .setBytecode(proxyContractJson.bytecode)
-        .setConstructorParameters(constructorParameters)
-        .setGas(100000)
-        .execute(client);
-
-    receipt = await response.getReceipt(client);
-    proxyContractId = receipt.contractId;
+    proxyContractId = await createContract(client, proxyContractJson, 100000, undefined, constructorParameters);
 
     console.log(`Deploying msgSender contract`);
-    response = await new ContractCreateFlow()
-        .setBytecode(msgSenderContractJson.bytecode)
-        .setGas(100000)
-        .execute(client);
-
-    receipt = await response.getReceipt(client);
-    msgSenderContractId = receipt.contractId;
+    msgSenderContractId = await createContract(client, msgSenderContractJson, 100000);
 
     console.log(`Proxy contract address: ${proxyContractId.toSolidityAddress()}`);
     console.log(`Logic contract address: ${logicContractId.toSolidityAddress()}`);

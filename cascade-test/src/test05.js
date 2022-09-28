@@ -1,60 +1,31 @@
 const {
-    Client,
-    PrivateKey,
-    ContractCreateFlow,
-    Hbar,
-    AccountId, AccountCreateTransaction, ContractExecuteTransaction, ContractFunctionParameters,
-    TokenCreateTransaction, TokenInfoQuery,
+    PrivateKey, ContractFunctionParameters,
+    TokenInfoQuery,
 } = require("@hashgraph/sdk");
 
-require('dotenv').config({ path: '../../.env' });
 const logicContractJson = require("../build/HTSLogic.json");
-let logicContractId;
-
-let client;
+const {executeContract, contractAdminKeyIfRequired, getClient, createAccount, createContract, createToken} = require("./utils");
 
 async function main() {
 
-    client = Client.forName(process.env.HEDERA_NETWORK);
-    client.setOperator(
-        AccountId.fromString(process.env.OPERATOR_ID),
-        PrivateKey.fromString(process.env.OPERATOR_KEY)
-    );
+    let contractAdminKey = contractAdminKeyIfRequired();
+    let client = getClient();
 
     console.log(`Creating account for Alice`);
     const aliceKey = PrivateKey.generateED25519();
-    let response = await new AccountCreateTransaction()
-        .setKey(aliceKey)
-        .setInitialBalance(new Hbar(20))
-        .execute(client);
-
-    let receipt = await response.getReceipt(client);
-    const aliceAccountId = receipt.accountId;
+    const aliceAccountId = await createAccount(client, aliceKey);
 
     console.log(`Deploying logic contract`);
-    response = await new ContractCreateFlow()
-        .setBytecode(logicContractJson.bytecode)
-        .setGas(100000)
-        .execute(client);
-
-    receipt = await response.getReceipt(client);
-    logicContractId = receipt.contractId;
+    if (contractAdminKey) {
+        console.log(`-- with admin key`);
+    }
+    const logicContractId = await createContract(client, logicContractJson, 100000, contractAdminKey);
 
     // switch client to Alice
     client.setOperator(aliceAccountId, aliceKey);
 
     // create a fungible token
-    console.log(`Creating token`);
-    response = await new TokenCreateTransaction()
-        .setTokenName("test")
-        .setTokenSymbol("test")
-        .setTreasuryAccountId(aliceAccountId)
-        .setSupplyKey(logicContractId)
-        .setInitialSupply(0)
-        .execute(client);
-
-    receipt = await response.getReceipt(client);
-    const tokenId = receipt.tokenId;
+    const tokenId = await createToken(client, aliceAccountId, logicContractId);
 
     console.log(`Logic contract address: ${logicContractId.toSolidityAddress()}`);
     console.log(`Alice Address is ${aliceAccountId.toSolidityAddress()}`);
@@ -66,13 +37,7 @@ async function main() {
         .addAddress(tokenId.toSolidityAddress());
     console.log(`Minting via call to HTS`);
     try {
-        response = await new ContractExecuteTransaction()
-            .setContractId(logicContractId)
-            .setGas(50000)
-            .setFunction("mintCall", functionParameters)
-            .execute(client);
-
-        await response.getReceipt(client);
+        await executeContract(client, logicContractId, 50000, "mintCall", functionParameters, contractAdminKey);
         console.log(`-- Minting was successful`);
     } catch (e) {
         console.error(e);
@@ -81,13 +46,7 @@ async function main() {
     // mint via HTSLogic which delegate calls HTS mint
     console.log(`Minting via delegate call to HTS`);
     try {
-        response = await new ContractExecuteTransaction()
-            .setContractId(logicContractId)
-            .setGas(50000)
-            .setFunction("mintDelegate", functionParameters)
-            .execute(client);
-
-        await response.getReceipt(client);
+        await executeContract(client, logicContractId, 50000, "mintDelegate", functionParameters, contractAdminKey);
         console.log(`-- Minting was successful`);
     } catch (e) {
         console.error(e);

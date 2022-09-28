@@ -7,7 +7,7 @@ import "./HTSInterface.sol";
 contract HTSLogic is HederaTokenService {
 
     function mintCall(address tokenAddress) external {
-        (int256 responseCode, , ) = HederaTokenService
+        (int responseCode, , ) = HederaTokenService
         .mintToken(tokenAddress, uint64(1), new bytes[](0));
         require(responseCode == HederaResponseCodes.SUCCESS, "Error");
     }
@@ -22,37 +22,37 @@ contract HTSLogic is HederaTokenService {
             )
         );
         require(success);
-        (int256 responseCode, , ) = abi.decode(result, (int256, uint64, int64[]));
+        (int responseCode, , ) = abi.decode(result, (int, uint64, int64[]));
         require(responseCode == HederaResponseCodes.SUCCESS, "Error");
     }
 
-    function mintCallInterfaceCall(HTSInterface interfaceAddress, address tokenAddress) external returns (int256) {
-        return interfaceAddress.mintCall(tokenAddress);
+    function mintCallInterfaceCall(HTSInterface interfaceAddress, address tokenAddress) external {
+        interfaceAddress.mintCall(tokenAddress);
     }
 
-    function mintCallInterfaceDelegate(HTSInterface interfaceAddress, address tokenAddress) external returns (int256) {
-        return interfaceAddress.mintDelegate(tokenAddress);
+    function mintCallInterfaceDelegate(HTSInterface interfaceAddress, address tokenAddress) external {
+        interfaceAddress.mintDelegate(tokenAddress);
     }
 
-    function mintDelegateInterfaceCall(HTSInterface interfaceAddress, address tokenAddress) external returns (int256) {
+    function mintDelegateInterfaceCall(HTSInterface interfaceAddress, address tokenAddress) external {
         (bool success, bytes memory result) = address(interfaceAddress).delegatecall(
             abi.encodeWithSignature("mintCall(address)", tokenAddress)
         );
 
         require(success);
-        (int256 responseCode, , ) = abi.decode(result, (int256, uint64, int64[]));
-//        require(responseCode == HederaResponseCodes.SUCCESS, "Error");
-        return responseCode;
+        (int responseCode, , ) = abi.decode(result, (int, uint64, int64[]));
+        require(responseCode == HederaResponseCodes.SUCCESS, "Error");
+//        return responseCode;
     }
 
-    function mintDelegateInterfaceDelegate(HTSInterface interfaceAddress, address tokenAddress) external returns (int256) {
+    function mintDelegateInterfaceDelegate(HTSInterface interfaceAddress, address tokenAddress) external {
         (bool success, bytes memory result) = address(interfaceAddress).delegatecall(
             abi.encodeWithSignature("mintDelegate(address)", tokenAddress)
         );
 
         require(success);
-        (int256 responseCode, , ) = abi.decode(result, (int256, uint64, int64[]));
-//        require(responseCode == HederaResponseCodes.SUCCESS, "Error");
-        return responseCode;
+        (int responseCode, , ) = abi.decode(result, (int, uint64, int64[]));
+        require(responseCode == HederaResponseCodes.SUCCESS, "Error");
+//        return responseCode;
     }
 }

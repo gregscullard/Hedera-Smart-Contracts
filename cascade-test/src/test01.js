@@ -1,47 +1,28 @@
 const {
-    Client,
-    PrivateKey,
-    ContractCreateFlow,
     ContractCallQuery,
     Hbar,
-    AccountId,
 } = require("@hashgraph/sdk");
 
 require('dotenv').config({ path: '../../.env' });
 const logicContractJson = require("../build/Logic.json");
 const msgSenderContractJson = require("../build/MsgSender.json");
 const Web3 = require("web3");
+const {getClient, createContract} = require("./utils");
 const web3 = new Web3;
+
+let client;
 let logicContractId;
 let msgSenderContractId;
 
-let client;
-
 async function main() {
 
-    client = Client.forName(process.env.HEDERA_NETWORK);
-    client.setOperator(
-        AccountId.fromString(process.env.OPERATOR_ID),
-        PrivateKey.fromString(process.env.OPERATOR_KEY)
-    );
+    client = getClient();
 
     console.log(`Deploying logic contract`);
-    let response = await new ContractCreateFlow()
-        .setBytecode(logicContractJson.bytecode)
-        .setGas(100000)
-        .execute(client);
-
-    let receipt = await response.getReceipt(client);
-    logicContractId = receipt.contractId;
+    logicContractId = await createContract(client, logicContractJson, 100000);
 
     console.log(`Deploying msgSender contract`);
-    response = await new ContractCreateFlow()
-        .setBytecode(msgSenderContractJson.bytecode)
-        .setGas(100000)
-        .execute(client);
-
-    receipt = await response.getReceipt(client);
-    msgSenderContractId = receipt.contractId;
+    msgSenderContractId = await createContract(client, msgSenderContractJson, 100000);
 
     console.log(`Logic contract address: ${logicContractId.toSolidityAddress()}`);
     console.log(`Sender contract address: ${msgSenderContractId.toSolidityAddress()}`);
