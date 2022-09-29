@@ -68,14 +68,19 @@ async function createContract(client, json, gas, contractAdminKey, constructorPa
     return receipt.contractId;
 }
 
-async function createToken(client, treasuryAccountId, supplyKey) {
-    const response = await new TokenCreateTransaction()
+async function createToken(client, treasuryAccountId, supplyKey, adminKey) {
+    const tx = new TokenCreateTransaction()
         .setTokenName("test")
         .setTokenSymbol("test")
         .setTreasuryAccountId(treasuryAccountId)
         .setSupplyKey(supplyKey)
-        .setInitialSupply(0)
-        .execute(client);
+        .setInitialSupply(0);
+    if (adminKey) {
+        tx.setAdminKey(adminKey);
+        tx.freezeWith(client);
+        await tx.sign(adminKey);
+    }
+    const response = await tx.execute(client);
 
     const receipt = await response.getReceipt(client);
     return receipt.tokenId;
