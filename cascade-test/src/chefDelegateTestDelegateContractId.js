@@ -4,7 +4,7 @@ const {
 } = require("@hashgraph/sdk");
 
 const chefContractJson = require("../build/Chef.json");
-const callChefContractJson = require("../build/CallChef.json");
+const callChefContractJson = require("../build/CallChefDelegate.json");
 const proxyContractJson = require("../build/HederaERC1967Proxy.json")
 const {getClient, createAccount, createContract, createToken, executeContract} = require("./utils");
 
