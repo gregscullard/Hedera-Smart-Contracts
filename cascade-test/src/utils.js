@@ -1,7 +1,7 @@
 require('dotenv').config({ path: '../../.env' });
 
 const {ContractExecuteTransaction, PrivateKey, AccountCreateTransaction, Hbar, Client, AccountId, ContractCreateFlow,
-    TokenCreateTransaction
+    TokenCreateTransaction, ContractFunctionParameters, TokenId
 } = require("@hashgraph/sdk");
 
 async function executeContract(client, contractId, gas, functionName, functionParameters, contractAdminKey) {
@@ -35,7 +35,7 @@ function contractAdminKeyIfRequired() {
 async function createAccount(client, privateKey) {
     let response = await new AccountCreateTransaction()
         .setKey(privateKey)
-        .setInitialBalance(new Hbar(20))
+        .setInitialBalance(new Hbar(100))
         .execute(client);
 
     let receipt = await response.getReceipt(client);
@@ -81,11 +81,50 @@ async function createToken(client, treasuryAccountId, supplyKey) {
     return receipt.tokenId;
 }
 
+async function createTokenFromSmartContract(contractId, supplyKeyAddress, delegate, client) {
+    const createTokenTransaction = await new ContractExecuteTransaction()
+        .setContractId(contractId)
+        .setGas(5000000)
+        .setMaxTransactionFee(new Hbar(50))
+        .setPayableAmount(60)
+        .setFunction("createFungibleToken",
+        new ContractFunctionParameters()
+            .addAddress(supplyKeyAddress.toSolidityAddress())
+            .addBool(delegate)
+        )
+
+    const createTokenTx = await createTokenTransaction.execute(client);
+    const createTokenRx = await createTokenTx.getRecord(client);
+    const tokenIdSolidityAddr = createTokenRx.contractFunctionResult.getAddress(0);
+    const tokenIdsol = TokenId.fromSolidityAddress(tokenIdSolidityAddr);
+    console.log(`Token created with ID: ${tokenIdsol} \n`);
+    console.log(`Token created with Solidity Address: ${tokenIdSolidityAddr.toString()} \n`);
+
+    return tokenIdsol;
+}
+
+async function mintTokenFromSmartContract(contractId, tokenId, delegate, client) {
+    const mintTokenTransaction = await new ContractExecuteTransaction()
+        .setContractId(contractId)
+        .setGas(1500000)
+        .setFunction("mintToken",
+        new ContractFunctionParameters()
+        .addAddress(tokenId.toSolidityAddress())
+        .addBool(delegate));
+    
+    const mintTokenTx = await mintTokenTransaction.execute(client);
+    const mintTokenReceipt = await mintTokenTx.getReceipt(client);
+    console.log(`Token mint transaction status: ${mintTokenReceipt.status} \n`);
+
+}
+
 module.exports = {
     executeContract,
     contractAdminKeyIfRequired,
     createAccount,
     getClient,
     createContract,
-    createToken
+    createToken,
+    createTokenFromSmartContract,
+    mintTokenFromSmartContract
 }
