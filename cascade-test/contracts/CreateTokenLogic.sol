@@ -11,7 +11,7 @@ contract CreateTokenLogic is HederaTokenService, ExpiryHelper {
 
     using Bits for uint;
 
-    function createFungibleToken(address supplyKeyAddress, bool delegate) external payable returns (int responseCode, address tokenAddress) {
+    function createFungibleToken(address supplyKeyAddress, bool delegate) external payable returns (address tokenAddress) {
         uint256 supplyKeyType;
         IHederaTokenService.KeyValue memory supplyKeyValue;
 
@@ -36,13 +36,15 @@ contract CreateTokenLogic is HederaTokenService, ExpiryHelper {
         myToken.tokenKeys = keys;
 
         if (!delegate) {
-            (responseCode,  tokenAddress) =  HederaTokenService.createFungibleToken(myToken, 10, 2);
+        (int responseCode, address _token) = createFungibleToken(myToken, 10, 8);
+            require(responseCode == HederaResponseCodes.SUCCESS, "Create token should be successful.");
+            return _token;
         } else {
             (bool success, bytes memory result) = address(HederaTokenService.precompileAddress).delegatecall(
                 abi.encodeWithSelector(IHederaTokenService.createFungibleToken.selector,  myToken, 10, 8, 2, new bytes[](0))
             );
             require(success);
-            (responseCode, , ) = abi.decode(result, (int, uint64, int64[]));
+            (int responseCode, , ) = abi.decode(result, (int, uint64, int64[]));
             require(responseCode == HederaResponseCodes.SUCCESS, "Error");
         }
     }
