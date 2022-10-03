@@ -84,11 +84,57 @@ async function createToken(client, treasuryAccountId, supplyKey) {
 async function createTokenFromSmartContract(contractId, supplyKeyAddress, delegate, client) {
     const createTokenTransaction = await new ContractExecuteTransaction()
         .setContractId(contractId)
-        .setGas(5000000)
+        .setGas(300000)
         .setMaxTransactionFee(new Hbar(50))
-        .setPayableAmount(60)
+        .setPayableAmount(20)
         .setFunction("createFungibleToken",
         new ContractFunctionParameters()
+            .addAddress(supplyKeyAddress.toSolidityAddress())
+            .addBool(delegate)
+        )
+
+    const createTokenTx = await createTokenTransaction.execute(client);
+    const createTokenRx = await createTokenTx.getRecord(client);
+    const tokenIdSolidityAddr = createTokenRx.contractFunctionResult.getAddress(0);
+    const tokenIdsol = TokenId.fromSolidityAddress(tokenIdSolidityAddr);
+    console.log(`Token created with ID: ${tokenIdsol} \n`);
+    console.log(`Token created with Solidity Address: ${tokenIdSolidityAddr.toString()} \n`);
+
+    return tokenIdsol;
+}
+
+async function createTokenFromInterface(contractId, interfaceContractId, supplyKeyAddress, delegate, client) {
+    const createTokenTransaction = await new ContractExecuteTransaction()
+        .setContractId(contractId)
+        .setGas(300000)
+        .setMaxTransactionFee(new Hbar(50))
+        .setPayableAmount(20)
+        .setFunction("createFungibleTokenInterface",
+        new ContractFunctionParameters()
+            .addAddress(interfaceContractId.toSolidityAddress())
+            .addAddress(supplyKeyAddress.toSolidityAddress())
+            .addBool(delegate)
+        )
+
+    const createTokenTx = await createTokenTransaction.execute(client);
+    const createTokenRx = await createTokenTx.getRecord(client);
+    const tokenIdSolidityAddr = createTokenRx.contractFunctionResult.getAddress(0);
+    const tokenIdsol = TokenId.fromSolidityAddress(tokenIdSolidityAddr);
+    console.log(`Token created with ID: ${tokenIdsol} \n`);
+    console.log(`Token created with Solidity Address: ${tokenIdSolidityAddr.toString()} \n`);
+
+    return tokenIdsol;
+}
+
+async function createFungibleTokenDelegateInterface(contractId, interfaceContractId, supplyKeyAddress, delegate, client) {
+    const createTokenTransaction = await new ContractExecuteTransaction()
+        .setContractId(contractId)
+        .setGas(300000)
+        .setMaxTransactionFee(new Hbar(50))
+        .setPayableAmount(20)
+        .setFunction("createFungibleTokenDelegateInterface",
+        new ContractFunctionParameters()
+            .addAddress(interfaceContractId.toSolidityAddress())
             .addAddress(supplyKeyAddress.toSolidityAddress())
             .addBool(delegate)
         )
@@ -106,9 +152,41 @@ async function createTokenFromSmartContract(contractId, supplyKeyAddress, delega
 async function mintTokenFromSmartContract(contractId, tokenId, delegate, client) {
     const mintTokenTransaction = await new ContractExecuteTransaction()
         .setContractId(contractId)
-        .setGas(1500000)
+        .setGas(300000)
         .setFunction("mintToken",
         new ContractFunctionParameters()
+        .addAddress(tokenId.toSolidityAddress())
+        .addBool(delegate));
+    
+    const mintTokenTx = await mintTokenTransaction.execute(client);
+    const mintTokenReceipt = await mintTokenTx.getReceipt(client);
+    console.log(`Token mint transaction status: ${mintTokenReceipt.status} \n`);
+
+}
+
+async function mintTokenFromInterface(contractId, interfaceContractId, tokenId, delegate, client) {
+    const mintTokenTransaction = await new ContractExecuteTransaction()
+        .setContractId(contractId)
+        .setGas(300000)
+        .setFunction("mintTokenInterface",
+        new ContractFunctionParameters()
+        .addAddress(interfaceContractId.toSolidityAddress())
+        .addAddress(tokenId.toSolidityAddress())
+        .addBool(delegate));
+    
+    const mintTokenTx = await mintTokenTransaction.execute(client);
+    const mintTokenReceipt = await mintTokenTx.getReceipt(client);
+    console.log(`Token mint transaction status: ${mintTokenReceipt.status} \n`);
+
+}
+
+async function mintTokenDelegateInterface(contractId, interfaceContractId, tokenId, delegate, client) {
+    const mintTokenTransaction = await new ContractExecuteTransaction()
+        .setContractId(contractId)
+        .setGas(300000)
+        .setFunction("mintTokenDelegateInterface",
+        new ContractFunctionParameters()
+        .addAddress(interfaceContractId.toSolidityAddress())
         .addAddress(tokenId.toSolidityAddress())
         .addBool(delegate));
     
@@ -126,5 +204,9 @@ module.exports = {
     createContract,
     createToken,
     createTokenFromSmartContract,
-    mintTokenFromSmartContract
+    mintTokenFromSmartContract,
+    createTokenFromInterface,
+    mintTokenFromInterface,
+    createFungibleTokenDelegateInterface,
+    mintTokenDelegateInterface
 }

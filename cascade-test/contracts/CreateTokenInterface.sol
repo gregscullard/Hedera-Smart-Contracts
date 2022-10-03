@@ -6,9 +6,8 @@ import "./hts-precompile/HederaTokenService.sol";
 import "./hts-precompile/IHederaTokenService.sol";
 import './hts-precompile/ExpiryHelper.sol';
 import './hts-precompile/HederaResponseCodes.sol';
-import './CreateTokenInterface.sol';
 
-contract CreateTokenLogic is HederaTokenService, ExpiryHelper {
+contract CreateTokenInterface is HederaTokenService, ExpiryHelper {
 
     using Bits for uint;
 
@@ -63,30 +62,15 @@ contract CreateTokenLogic is HederaTokenService, ExpiryHelper {
             require(responseCode == HederaResponseCodes.SUCCESS, "Error"); 
         }
     }
+}
 
-    function createFungibleTokenInterface(CreateTokenInterface interfaceAddress, address supplyKeyAddress, bool delegate) external {
-        interfaceAddress.createFungibleToken(supplyKeyAddress, delegate);
-    }
+library Bits {
 
-    function createFungibleTokenDelegateInterface(CreateTokenInterface interfaceAddress, address supplyKeyAddress, bool delegate) external {
-        (bool success, bytes memory result) = address(interfaceAddress).delegatecall(
-            abi.encodeWithSelector(interfaceAddress.createFungibleToken.selector,  supplyKeyAddress, delegate, new bytes[](0))
-        );
-        require(success);
-        (int responseCode, , ) = abi.decode(result, (int, uint64, int64[]));
-        require(responseCode == HederaResponseCodes.SUCCESS, "Error");
-    }
+    uint constant internal ONE = uint(1);
 
-    function mintTokenInterface(CreateTokenInterface interfaceAddress, address tokenAddress, bool delegate) external {
-        interfaceAddress.mintToken(tokenAddress, delegate);
-    }
-
-    function mintTokenDelegateInterface(CreateTokenInterface interfaceAddress, address tokenAddress, bool delegate) external {
-        (bool success, bytes memory result) = address(interfaceAddress).delegatecall(
-            abi.encodeWithSelector(interfaceAddress.mintToken.selector, tokenAddress, delegate, new bytes[](0))
-        );
-        require(success);
-        (int responseCode, , ) = abi.decode(result, (int, uint64, int64[]));
-        require(responseCode == HederaResponseCodes.SUCCESS, "Error");
+    // Sets the bit at the given 'index' in 'self' to '1'.
+    // Returns the modified value.
+    function setBit(uint self, uint8 index) internal pure returns (uint) {
+        return self | ONE << index;
     }
 }
