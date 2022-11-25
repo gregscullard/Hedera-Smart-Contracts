@@ -20,6 +20,11 @@ async function main() {
     console.log(`Deploying factory contract`);
     const factoryContractId = await createContract(client, factoryContractJson, 10000);
 
+    // create a fungible token
+    console.log(`Creating token`);
+    // switch client to Bob
+    client.setOperator(bobAccountId, bobKey);
+
     console.log(`Creating HTS contract via factory`);
     const transactionResult = await new ContractExecuteTransaction()
         .setContractId(factoryContractId)
@@ -27,14 +32,12 @@ async function main() {
         .setGas(1000000)
         .execute(client);
 
+    // get record
+    console.log(`Get transaction record`);
+    await transactionResult.getReceipt(client);
     const transactionRecord = await transactionResult.getRecordQuery().execute(client);
     const logicContractAddress = transactionRecord.contractFunctionResult.getAddress(0);
     const proxyContractAddress = transactionRecord.contractFunctionResult.getAddress(1);
-
-    // create a fungible token
-    console.log(`Creating token`);
-    // switch client to Bob
-    client.setOperator(bobAccountId, bobKey);
 
     const tokenId = await createToken(client, bobAccountId, DelegateContractId.fromSolidityAddress(proxyContractAddress))
 
