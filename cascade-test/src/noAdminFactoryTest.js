@@ -1,6 +1,6 @@
 const {
     PrivateKey, ContractFunctionParameters,
-    TokenInfoQuery, DelegateContractId, ContractExecuteTransaction, ContractId,
+    TokenInfoQuery, DelegateContractId, ContractExecuteTransaction, ContractId, AccountId
 } = require("@hashgraph/sdk");
 
 const factoryContractJson = require("../build/HTSFactory.json");
@@ -39,7 +39,10 @@ async function main() {
     const logicContractAddress = transactionRecord.contractFunctionResult.getAddress(0);
     const proxyContractAddress = transactionRecord.contractFunctionResult.getAddress(1);
 
-    const tokenId = await createToken(client, bobAccountId, DelegateContractId.fromSolidityAddress(proxyContractAddress))
+    // this works, Bob's account will be the token's treasury and Bob signs the transaction
+    const tokenIdOk = await createToken(client, bobAccountId, DelegateContractId.fromSolidityAddress(proxyContractAddress))
+    // this fails, the proxyContract doesn't have an admin key and therefore can't be set to be the token's treasury
+    const tokenId = await createToken(client, AccountId.fromSolidityAddress(proxyContractAddress), DelegateContractId.fromSolidityAddress(proxyContractAddress))
 
     console.log(`Proxy contract address: ${proxyContractAddress}`);
     console.log(`Logic contract address: ${logicContractAddress}`);
