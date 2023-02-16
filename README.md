@@ -44,3 +44,6 @@ Shows how a contract can be used to manage fungible and non-fungible token allow
 
 Demonstrates how to create an upgradable contract that manages a native token.
 
+### pseudo-random
+
+Demonstrates how to use the pseudo random precompiled contract
