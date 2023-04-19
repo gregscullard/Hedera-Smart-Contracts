@@ -17,5 +17,6 @@ npm run build # to recompile the contracts (ignore warnings)
 
 ```shell
 cd src
-node index.js 
+node contract-with-admin-key.js 
+node contract-without-adminkey.js
 ```
