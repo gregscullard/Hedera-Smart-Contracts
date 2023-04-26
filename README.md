@@ -47,3 +47,8 @@ Demonstrates how to create an upgradable contract that manages a native token.
 ### pseudo-random
 
 Demonstrates how to use the pseudo random precompiled contract
+
+### payable-contract
+
+Hbar has 8 decimals, whereas Ethereum has 18, when converting hbar to wei for payable functions, you end up with a smaller amount than converting hbar to tinybar.
+Demonstrates the use of hethers.js for the appropriate calculation.
